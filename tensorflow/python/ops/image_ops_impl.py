@@ -90,22 +90,24 @@ def _is_tensor(x):
   return isinstance(x, (ops.Tensor, variables.Variable))
 
 
-def _ImageDimensions(image):
+def _ImageDimensions(image,rank=4):
   """Returns the dimensions of an image tensor.
 
   Args:
-    image: A 3-D Tensor of shape `[height, width, channels]`.
+    image: A 4-D Tensor of shape `[batch, height, width, channels]`.or 
+     	   A 3-D Tensor of shape `[height, width, channels]`.
 
   Returns:
-    A list of `[height, width, channels]` corresponding to the dimensions of the
+    A list of `[batch, height, width, channels]` corresponding to the dimensions of the
     input image.  Dimensions that are statically known are python integers,
     otherwise they are integer scalar tensors.
   """
+  print("in here")
   if image.get_shape().is_fully_defined():
     return image.get_shape().as_list()
   else:
-    static_shape = image.get_shape().with_rank(3).as_list()
-    dynamic_shape = array_ops.unstack(array_ops.shape(image), 3)
+    static_shape = image.get_shape().with_rank(4).as_list()
+    dynamic_shape = array_ops.unstack(array_ops.shape(image), 4)
     return [s if s is not None else d
             for s, d in zip(static_shape, dynamic_shape)]
 
@@ -444,24 +446,24 @@ def pad_to_bounding_box(image, offset_height, offset_width, target_height,
 def crop_to_bounding_box(image, offset_height, offset_width, target_height,
                          target_width):
   """Crops an image to a specified bounding box.
-
   This op cuts a rectangular part out of `image`. The top-left corner of the
   returned image is at `offset_height, offset_width` in `image`, and its
   lower-right corner is at
   `offset_height + target_height, offset_width + target_width`.
-
   Args:
-    image: 3-D tensor with shape `[height, width, channels]`
+    image: 4-D Tensor of shape `[batch, height, width, channels]` or
+           3-D Tensor of shape `[height, width, channels]`.
     offset_height: Vertical coordinate of the top-left corner of the result in
                    the input.
     offset_width: Horizontal coordinate of the top-left corner of the result in
                   the input.
     target_height: Height of the result.
     target_width: Width of the result.
-
   Returns:
-    3-D tensor of image with shape `[target_height, target_width, channels]`
-
+    If `image` was 4-D, a 4-D float Tensor of shape
+    `[batch, target_height, target_width, channels]`
+    If `image` was 3-D, a 3-D float Tensor of shape
+    `[target_height, target_width, channels]`
   Raises:
     ValueError: If the shape of `image` is incompatible with the `offset_*` or
       `target_*` arguments, or either `offset_height` or `offset_width` is
@@ -470,9 +472,9 @@ def crop_to_bounding_box(image, offset_height, offset_width, target_height,
   image = ops.convert_to_tensor(image, name='image')
 
   assert_ops = []
-  assert_ops += _Check3DImage(image, require_static=False)
+  assert_ops += _CheckAtleast3DImage(image, require_static=False)
 
-  height, width, depth = _ImageDimensions(image)
+  batch, height, width, depth = _ImageDimensions(image)
 
   assert_ops += _assert(offset_width >= 0, ValueError,
                         'offset_width must be >= 0.')
